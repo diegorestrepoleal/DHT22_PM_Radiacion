@@ -8,7 +8,44 @@ output: html_document
 library(tidyverse)
 ```
 
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+resumen <- function(df) {
+  df %>%
+    summarise(
+      across(
+        where(is.numeric), 
+        list(
+          N = ~ n(),
+          `Valid (n)` = ~ sum(!is.na(.x)),
+          Min = ~ round(min(.x, na.rm = TRUE), 2),
+          Q1 = ~ round(quantile(.x, 0.25, na.rm = TRUE), 2),
+          Median = ~ round(median(.x, na.rm = TRUE), 2),
+          Mean = ~ round(mean(.x, na.rm = TRUE), 2),
+          Q3 = ~ round(quantile(.x, 0.75, na.rm = TRUE), 2),
+          Max = ~ round(max(.x, na.rm = TRUE), 2),
+          `Missing (n)` = ~ sum(is.na(.x)),
+          `Missing (%)` = ~ round((sum(is.na(.x)) / n()) * 100, 2)
+        ),
+        .names = "{.col}__{.fn}"
+      )
+    ) %>%
+    pivot_longer(
+      cols = everything(),
+      names_to = c("Variable", "Estadistico"),
+      names_sep = "__"
+    ) %>%
+    pivot_wider(
+      names_from = Estadistico,
+      values_from = value
+    )
+}
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 df <- read_csv("/kaggle/input/datasets/diegorestrepoleal/measurement-of-t-h-pm-and-radiation/Dht22_PM_Piranometro.csv")
-df
+```
+
+```{r, message=FALSE, warning=FALSE}
+df %>%
+    resumen()
 ```
