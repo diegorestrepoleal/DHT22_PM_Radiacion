@@ -1,28 +1,62 @@
 ---
 title: "Análisis de Datos"
+subtitle: "Medición de temperatura, humedad, material particulado y radiación"
 author: "Diego"
-output: html_document
+date: "`r format(Sys.Date(), '%d de %B de %Y')`"
+output:
+  html_document:
+    theme: flatly
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    number_sections: true
+    code_folding: hide
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 9,
+  fig.height = 5,
+  dpi = 120
+)
+
 library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(DT)
+
+options(knitr.kable.NA = "—")
 ```
 
-```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Introducción
+
+Este documento presenta un resumen descriptivo de las variables numéricas del conjunto de datos
+**Dht22 + PM + Piranómetro** (temperatura, humedad, material particulado y radiación solar).
+
+# Funciones auxiliares
+
+```{r funciones}
 resumen <- function(df) {
   df %>%
     summarise(
       across(
-        where(is.numeric), 
+        where(is.numeric),
         list(
-          N = ~ n(),
+          N           = ~ n(),
           `Valid (n)` = ~ sum(!is.na(.x)),
-          Min = ~ round(min(.x, na.rm = TRUE), 2),
-          Q1 = ~ round(quantile(.x, 0.25, na.rm = TRUE), 2),
-          Median = ~ round(median(.x, na.rm = TRUE), 2),
-          Mean = ~ round(mean(.x, na.rm = TRUE), 2),
-          Q3 = ~ round(quantile(.x, 0.75, na.rm = TRUE), 2),
-          Max = ~ round(max(.x, na.rm = TRUE), 2),
+          Min         = ~ round(min(.x, na.rm = TRUE), 2),
+          Q1          = ~ round(quantile(.x, 0.25, na.rm = TRUE), 2),
+          Median      = ~ round(median(.x, na.rm = TRUE), 2),
+          Mean        = ~ round(mean(.x, na.rm = TRUE), 2),
+          Q3          = ~ round(quantile(.x, 0.75, na.rm = TRUE), 2),
+          Max         = ~ round(max(.x, na.rm = TRUE), 2),
           `Missing (n)` = ~ sum(is.na(.x)),
           `Missing (%)` = ~ round((sum(is.na(.x)) / n()) * 100, 2)
         ),
@@ -39,13 +73,108 @@ resumen <- function(df) {
       values_from = value
     )
 }
+
+tabla_bonita <- function(x, caption = NULL, digits = 2) {
+  x %>%
+    kable(
+      caption = caption,
+      digits = digits,
+      format.args = list(big.mark = ".", decimal.mark = ","),
+      align = c("l", rep("r", ncol(x) - 1))
+    ) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+      full_width = TRUE,
+      position = "center",
+      font_size = 13
+    ) %>%
+    row_spec(0, bold = TRUE, color = "white", background = "#2c3e50") %>%
+    column_spec(1, bold = TRUE)
+}
 ```
 
-```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Carga de datos
+
+```{r carga}
 df <- read_csv("/kaggle/input/datasets/diegorestrepoleal/measurement-of-t-h-pm-and-radiation/Dht22_PM_Piranometro.csv")
 ```
 
-```{r, message=FALSE, warning=FALSE}
+El conjunto de datos tiene **`r format(nrow(df), big.mark = ".")` filas** y
+**`r ncol(df)` columnas**.
+
+## Vista previa
+
+```{r vista-previa}
 df %>%
-    resumen()
+  head(10) %>%
+  tabla_bonita(caption = "Primeras 10 observaciones") %>%
+  scroll_box(width = "100%")
+```
+
+## Estructura de las variables
+
+```{r estructura}
+tibble(
+  Variable = names(df),
+  Tipo     = map_chr(df, ~ class(.x)[1]),
+  `NA (n)` = map_int(df, ~ sum(is.na(.x)))
+) %>%
+  tabla_bonita(caption = "Tipo de dato y valores faltantes por variable", digits = 0)
+```
+
+# Resumen estadístico
+
+## Tabla estática
+
+```{r resumen-estatico}
+res <- resumen(df)
+
+res %>%
+  tabla_bonita(caption = "Resumen estadístico de las variables numéricas") %>%
+  column_spec(
+    which(names(res) == "Missing (%)"),
+    color = "white",
+    background = spec_color(res$`Missing (%)`, option = "D", end = 0.8, direction = -1)
+  ) %>%
+  scroll_box(width = "100%")
+```
+
+## Tabla interactiva
+
+Se puede ordenar, filtrar y exportar.
+
+```{r resumen-interactivo}
+datatable(
+  res,
+  rownames = FALSE,
+  extensions = "Buttons",
+  options = list(
+    dom = "Bfrtip",
+    buttons = c("copy", "csv", "excel"),
+    pageLength = 15,
+    scrollX = TRUE
+  ),
+  caption = "Resumen estadístico (interactivo)"
+) %>%
+  formatRound(columns = setdiff(names(res), "Variable"), digits = 2)
+```
+
+# Distribución de las variables
+
+```{r histogramas, fig.height=7}
+df %>%
+  select(where(is.numeric)) %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "Valor") %>%
+  ggplot(aes(x = Valor)) +
+  geom_histogram(bins = 40, fill = "#2c7fb8", color = "white", na.rm = TRUE) +
+  facet_wrap(~ Variable, scales = "free") +
+  labs(
+    title = "Distribución de las variables numéricas",
+    x = NULL, y = "Frecuencia"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(face = "bold")
+  )
 ```
