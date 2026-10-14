@@ -1,0 +1,14 @@
+---
+title: "Análisis de Datos"
+author: "Diego"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+```
+
+```{r, message=FALSE, warning=FALSE}
+df <- read_csv("/kaggle/input/datasets/diegorestrepoleal/measurement-of-t-h-pm-and-radiation/Dht22_PM_Piranometro.csv")
+df
+```
