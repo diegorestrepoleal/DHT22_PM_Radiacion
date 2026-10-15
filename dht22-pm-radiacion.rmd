@@ -1,24 +1,20 @@
 ---
 title: "Análisis de Datos"
 subtitle: "Medición de temperatura, humedad, material particulado y radiación"
-author: "Diego"
+author: "Diego Restrepo-Leal"
 date: "`r format(Sys.Date(), '%d de %B de %Y')`"
+lang: es
 output:
-  html_document:
-    theme: flatly
-    highlight: tango
+  bookdown::html_document2:
     toc: true
-    toc_float:
-      collapsed: false
-      smooth_scroll: true
+    toc_float: true
+    toc_depth: 3
     number_sections: true
-    code_folding: hide
-    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-  echo = TRUE,
+  echo = FALSE,
   message = FALSE,
   warning = FALSE,
   fig.align = "center",
@@ -27,36 +23,39 @@ knitr::opts_chunk$set(
   dpi = 120
 )
 
+try(Sys.setlocale("LC_TIME", "es_ES.UTF-8"), silent = TRUE)
+
 library(tidyverse)
 library(knitr)
 library(kableExtra)
-library(DT)
 
-options(knitr.kable.NA = "—")
-```
+tabla <- function(x, caption = "", scroll = FALSE) {
+  out <- x %>%
+    knitr::kable(format = "html", caption = caption) %>%
+    kableExtra::kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed"),
+      full_width = FALSE,
+      position = "center",
+      font_size = 12
+    )
+  if (scroll) out <- kableExtra::scroll_box(out, width = "100%")
+  out
+}
 
-# Introducción
-
-Este documento presenta un resumen descriptivo de las variables numéricas del conjunto de datos
-**Dht22 + PM + Piranómetro** (temperatura, humedad, material particulado y radiación solar).
-
-# Funciones auxiliares
-
-```{r funciones}
 resumen <- function(df) {
   df %>%
     summarise(
       across(
         where(is.numeric),
         list(
-          N           = ~ n(),
-          `Valid (n)` = ~ sum(!is.na(.x)),
-          Min         = ~ round(min(.x, na.rm = TRUE), 2),
-          Q1          = ~ round(quantile(.x, 0.25, na.rm = TRUE), 2),
-          Median      = ~ round(median(.x, na.rm = TRUE), 2),
-          Mean        = ~ round(mean(.x, na.rm = TRUE), 2),
-          Q3          = ~ round(quantile(.x, 0.75, na.rm = TRUE), 2),
-          Max         = ~ round(max(.x, na.rm = TRUE), 2),
+          N             = ~ n(),
+          `Valid (n)`   = ~ sum(!is.na(.x)),
+          Min           = ~ round(min(.x, na.rm = TRUE), 2),
+          Q1            = ~ round(quantile(.x, 0.25, na.rm = TRUE), 2),
+          Median        = ~ round(median(.x, na.rm = TRUE), 2),
+          Mean          = ~ round(mean(.x, na.rm = TRUE), 2),
+          Q3            = ~ round(quantile(.x, 0.75, na.rm = TRUE), 2),
+          Max           = ~ round(max(.x, na.rm = TRUE), 2),
           `Missing (n)` = ~ sum(is.na(.x)),
           `Missing (%)` = ~ round((sum(is.na(.x)) / n()) * 100, 2)
         ),
@@ -74,107 +73,74 @@ resumen <- function(df) {
     )
 }
 
-tabla_bonita <- function(x, caption = NULL, digits = 2) {
-  x %>%
-    kable(
-      caption = caption,
-      digits = digits,
-      format.args = list(big.mark = ".", decimal.mark = ","),
-      align = c("l", rep("r", ncol(x) - 1))
-    ) %>%
-    kable_styling(
-      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
-      full_width = TRUE,
-      position = "center",
-      font_size = 13
-    ) %>%
-    row_spec(0, bold = TRUE, color = "white", background = "#2c3e50") %>%
-    column_spec(1, bold = TRUE)
-}
-```
-
-# Carga de datos
-
-```{r carga}
 df <- read_csv("/kaggle/input/datasets/diegorestrepoleal/measurement-of-t-h-pm-and-radiation/Dht22_PM_Piranometro.csv")
+
+df <- df %>%
+    rename(
+        `Humedad Relativa %` = Humedad
+    )
+
+df <- df %>%
+  mutate(Fecha = dmy_hms(Fecha, tz = "America/Bogota")) %>%
+  arrange(Fecha)
 ```
 
-El conjunto de datos tiene **`r format(nrow(df), big.mark = ".")` filas** y
-**`r ncol(df)` columnas**.
+# Análisis Exploratorio
 
-## Vista previa
+La Tabla \@ref(tab:tab-resumen) presenta los estadísticos descriptivos de las variables numéricas medidas.
 
-```{r vista-previa}
+```{r tab-resumen}
 df %>%
-  head(10) %>%
-  tabla_bonita(caption = "Primeras 10 observaciones") %>%
-  scroll_box(width = "100%")
+  resumen() %>%
+  tabla(caption = "Resumen estadístico.")
 ```
+Se observa que de las seis variables sólo dos, Temperatura y Humedad Relativa, presentar observaciones ausentes. Sin embargo, estas observaciones representan un porcentaje muy pequeño del total de las muestras, específicamente un 0.21%, los que se traduce a que de 8377 observaciones se perdieron 18. Adicionalmente, se observa que el valor mínimo de la temperatira es negativo, lo cuál no tiene significado físico para el sitio de medición.
 
-## Estructura de las variables
+Por su parte, \@ref(tab:tab-intervalos) presenta el resumen estadístico del tiempo de las muestras, en dicha tabla se observa un tiempo irregular con 8.37 minutos como valor máximo y 1 minuto como valor mímino.
 
-```{r estructura}
-tibble(
-  Variable = names(df),
-  Tipo     = map_chr(df, ~ class(.x)[1]),
-  `NA (n)` = map_int(df, ~ sum(is.na(.x)))
-) %>%
-  tabla_bonita(caption = "Tipo de dato y valores faltantes por variable", digits = 0)
-```
-
-# Resumen estadístico
-
-## Tabla estática
-
-```{r resumen-estatico}
-res <- resumen(df)
-
-res %>%
-  tabla_bonita(caption = "Resumen estadístico de las variables numéricas") %>%
-  column_spec(
-    which(names(res) == "Missing (%)"),
-    color = "white",
-    background = spec_color(res$`Missing (%)`, option = "D", end = 0.8, direction = -1)
+```{r tab-intervalos}
+df %>%
+  mutate(delta_min = as.numeric(difftime(Fecha, lag(Fecha), units = "mins"))) %>%
+  summarise(
+    `Mediana (min)` = round(median(delta_min, na.rm = TRUE), 2),
+    `Moda (min)`    = as.numeric(names(which.max(table(round(delta_min, 1))))),
+    `Mínimo (min)`  = round(min(delta_min, na.rm = TRUE), 2),
+    `Máximo (min)`  = round(max(delta_min, na.rm = TRUE), 2)
   ) %>%
-  scroll_box(width = "100%")
+  tabla(caption = "Resumen del tiempo entre observaciones en minutos.")
 ```
 
-## Tabla interactiva
-
-Se puede ordenar, filtrar y exportar.
-
-```{r resumen-interactivo}
-datatable(
-  res,
-  rownames = FALSE,
-  extensions = "Buttons",
-  options = list(
-    dom = "Bfrtip",
-    buttons = c("copy", "csv", "excel"),
-    pageLength = 15,
-    scrollX = TRUE
-  ),
-  caption = "Resumen estadístico (interactivo)"
-) %>%
-  formatRound(columns = setdiff(names(res), "Variable"), digits = 2)
+```{r}
+df <- df %>%
+  mutate(Fecha = floor_date(Fecha, unit = "5 minutes")) %>%
+  group_by(Fecha) %>%
+  summarise(
+    across(where(is.numeric), ~ mean(.x, na.rm = TRUE)),
+    n_obs = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.nan(.x), NA, .x)))
 ```
 
-# Distribución de las variables
 
-```{r histogramas, fig.height=7}
+Para mantener uniformidad en las observaciones, se remuestrea cada 5 minutos (ver tabla \@ref(tab:tab-resumen-5min)).
+
+```{r tab-resumen-5min}
 df %>%
-  select(where(is.numeric)) %>%
-  pivot_longer(everything(), names_to = "Variable", values_to = "Valor") %>%
-  ggplot(aes(x = Valor)) +
-  geom_histogram(bins = 40, fill = "#2c7fb8", color = "white", na.rm = TRUE) +
-  facet_wrap(~ Variable, scales = "free") +
-  labs(
-    title = "Distribución de las variables numéricas",
-    x = NULL, y = "Frecuencia"
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    strip.text = element_text(face = "bold"),
-    plot.title = element_text(face = "bold")
-  )
+  resumen() %>%
+  tabla(caption = "Resumen estadístico (5 minutos).")
+```
+En la tabla anterior se observan valores más cercanos a los esperados, pero aún el valor mínimo de la temperatura es preocupante.
+
+# Distribución de los datos
+
+La Figura \@ref(fig:fig-distribucion) muestra la distribución de la primera variable numérica del conjunto de datos.
+
+```{r fig-distribucion, fig.cap="Distribución de la primera variable numérica."}
+var1 <- df %>% select(where(is.numeric)) %>% names() %>% .[1]
+
+ggplot(df, aes(x = .data[[var1]])) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(x = var1, y = "Frecuencia") +
+  theme_minimal()
 ```
