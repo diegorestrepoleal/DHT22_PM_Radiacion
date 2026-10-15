@@ -18,8 +18,8 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE,
   fig.align = "center",
-  fig.width = 9,
-  fig.height = 5,
+  fig.width = 8,
+  fig.height = 4,
   dpi = 120
 )
 
@@ -78,24 +78,39 @@ df <- read_csv("/kaggle/input/datasets/diegorestrepoleal/measurement-of-t-h-pm-a
 df <- df %>%
     rename(
         `Humedad Relativa %` = Humedad
-    )
-
-df <- df %>%
+    ) %>%
   mutate(Fecha = dmy_hms(Fecha, tz = "America/Bogota")) %>%
   arrange(Fecha)
 ```
 
 # Análisis Exploratorio
+## Descripción 
+El conjunto de datos corresponde a una semana de mediciones al interior de las oficinas de la Facultad de Ingenierías de la Universidad Cooperativa de Colombian Campus Santa Marta.
 
-La Tabla \@ref(tab:tab-resumen) presenta los estadísticos descriptivos de las variables numéricas medidas.
+Se miden las variables (ver tabla \@ref(tab:tab-variables)):
+
+```{r tab-variables}
+df_variables <- tibble(Variables = names(df))
+df_variables %>%
+    tabla(caption = "Variales de estudio.")
+```
+
+En la tabla \@ref(tab:tab-raw) se presentan los diez primeros observaciones del conjunto de datos. Se aprecia que a simple vista la frecuenta de las mediciones no conservan un intérvalo regular de adquisición, es decir, 1 min, 5 min o 10 min. Adicionalmente, se puede apreciar que hay ausencia de valores en Temperatura y Humedad Relativa, así como en las dos primeras oobservaciones de material particulado de magnitudes más grandes que las otras. Adicionalmente, debido a que las mediciones se realizaron al interior de la oficina los valores bajos en radiación son coherentes con la ilumanición in-situ. 
+
+```{r tab-raw}
+df %>%
+    head(10) %>%
+    tabla(caption = "Primeras diez observaciones de los datos crudos.")
+```
+
+Por otro lado, la tabla \@ref(tab:tab-resumen) presenta los estadísticos descriptivos de las variables numéricas medidas. Se observa que de las seis variables sólo dos, Temperatura y Humedad Relativa, presentar observaciones ausentes. Sin embargo, estas observaciones representan un porcentaje muy pequeño del total de las muestras, específicamente un 0.21%, los que se traduce a que de 8377 observaciones se perdieron 18. Adicionalmente, se observa que el valor mínimo de la temperatira es negativo, lo cuál no tiene significado físico para el sitio de medición.
+
 
 ```{r tab-resumen}
 df %>%
   resumen() %>%
   tabla(caption = "Resumen estadístico.")
 ```
-Se observa que de las seis variables sólo dos, Temperatura y Humedad Relativa, presentar observaciones ausentes. Sin embargo, estas observaciones representan un porcentaje muy pequeño del total de las muestras, específicamente un 0.21%, los que se traduce a que de 8377 observaciones se perdieron 18. Adicionalmente, se observa que el valor mínimo de la temperatira es negativo, lo cuál no tiene significado físico para el sitio de medición.
-
 Por su parte, \@ref(tab:tab-intervalos) presenta el resumen estadístico del tiempo de las muestras, en dicha tabla se observa un tiempo irregular con 8.37 minutos como valor máximo y 1 minuto como valor mímino.
 
 ```{r tab-intervalos}
@@ -123,7 +138,7 @@ df <- df %>%
 ```
 
 
-Para mantener uniformidad en las observaciones, se remuestrea cada 5 minutos (ver tabla \@ref(tab:tab-resumen-5min)).
+Para mantener uniformidad en las observaciones, se remuestrea cada 5 minutosy se obtiene el promedio de cada observación en esa ventana de tiempo (ver tabla \@ref(tab:tab-resumen-5min)).
 
 ```{r tab-resumen-5min}
 df %>%
@@ -132,15 +147,120 @@ df %>%
 ```
 En la tabla anterior se observan valores más cercanos a los esperados, pero aún el valor mínimo de la temperatura es preocupante.
 
-# Distribución de los datos
+## Gráficas
+### Time plot
 
-La Figura \@ref(fig:fig-distribucion) muestra la distribución de la primera variable numérica del conjunto de datos.
+```{r fig-temperatura, fig.cap="Gráfica de tiempo de la temperatura."}
+df %>%
+    select(Fecha, `Temperatura °C`) %>%
+    ggplot() +
+    geom_line(aes(x = Fecha, y = `Temperatura °C`)) +
+    scale_x_datetime(date_breaks = "8 hour", date_labels = "%d/%m %H:%M") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
 
-```{r fig-distribucion, fig.cap="Distribución de la primera variable numérica."}
-var1 <- df %>% select(where(is.numeric)) %>% names() %>% .[1]
+```{r fig-humedad, fig.cap="Gráfica de tiempo de la humedad relativa."}
+df %>%
+    select(Fecha, `Humedad Relativa %`) %>%
+    ggplot() +
+    geom_line(aes(x = Fecha, y = `Humedad Relativa %`)) +
+    scale_x_datetime(date_breaks = "8 hour", date_labels = "%d/%m %H:%M") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+```{r fig-PM1, fig.cap="Gráfica de tiempo de PM 1."}
+df %>%
+    select(Fecha, `PM1.0 µg/m³`) %>%
+    ggplot() +
+    geom_line(aes(x = Fecha, y = `PM1.0 µg/m³`)) +
+    scale_x_datetime(date_breaks = "8 hour", date_labels = "%d/%m %H:%M") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+```{r fig-PM25, fig.cap="Gráfica de tiempo de PM 2.5."}
+df %>%
+    select(Fecha, `PM2.5 µg/m³`) %>%
+    ggplot() +
+    geom_line(aes(x = Fecha, y = `PM2.5 µg/m³`)) +
+    scale_x_datetime(date_breaks = "8 hour", date_labels = "%d/%m %H:%M") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
 
-ggplot(df, aes(x = .data[[var1]])) +
-  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
-  labs(x = var1, y = "Frecuencia") +
-  theme_minimal()
+```{r fig-PM10, fig.cap="Gráfica de tiempo de PM 10."}
+df %>%
+    select(Fecha, `PM10 µg/m³`) %>%
+    ggplot() +
+    geom_line(aes(x = Fecha, y = `PM10 µg/m³`)) +
+    scale_x_datetime(date_breaks = "8 hour", date_labels = "%d/%m %H:%M") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r fig-radiacion, fig.cap="Gráfica de tiempo de la radiación."}
+df %>%
+    select(Fecha, `Radiación W/m²`) %>%
+    ggplot() +
+    geom_line(aes(x = Fecha, y = `Radiación W/m²`)) +
+    scale_x_datetime(date_breaks = "8 hour", date_labels = "%d/%m %H:%M") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+### Distribución de los datos
+
+```{r fig-hist-temperatura, fig.cap="Histograma de la temperatura."}
+df %>%
+    select(Fecha, `Temperatura °C`) %>%
+    ggplot() +
+    geom_histogram(aes(x = `Temperatura °C`), bins = 30, color = "white") +
+    labs(y = "Cantidad") +
+    theme_minimal()
+```
+
+```{r fig-hist-humedad, fig.cap="Histograma de la humedad."}
+df %>%
+    select(Fecha, `Humedad Relativa %`) %>%
+    ggplot() +
+    geom_histogram(aes(x = `Humedad Relativa %`), bins = 30, color = "white") +
+    labs(y = "Cantidad") +
+    theme_minimal()
+```
+
+```{r fig-hist-PM1, fig.cap="Histograma de PM 1."}
+df %>%
+    select(Fecha, `PM1.0 µg/m³`) %>%
+    ggplot() +
+    geom_histogram(aes(x = `PM1.0 µg/m³`), bins = 30, color = "white") +
+    labs(y = "Cantidad") +
+    theme_minimal()
+```
+
+```{r fig-hist-PM25, fig.cap="Histograma de PM 2.5."}
+df %>%
+    select(Fecha, `PM2.5 µg/m³`) %>%
+    ggplot() +
+    geom_histogram(aes(x = `PM2.5 µg/m³`), bins = 30, color = "white") +
+    labs(y = "Cantidad") +
+    theme_minimal()
+```
+
+```{r fig-hist-PM10, fig.cap="Histograma de PM 10."}
+df %>%
+    select(Fecha, `PM10 µg/m³`) %>%
+    ggplot() +
+    geom_histogram(aes(x = `PM10 µg/m³`), bins = 30, color = "white") +
+    labs(y = "Cantidad") +
+    theme_minimal()
+```
+
+```{r fig-hist-radiacion, fig.cap="Histograma de la radiación."}
+df %>%
+    select(Fecha, `Radiación W/m²`) %>%
+    ggplot() +
+    geom_histogram(aes(x = `Radiación W/m²`), bins = 30, color = "white") +
+    labs(y = "Cantidad") +
+    theme_minimal()
 ```
